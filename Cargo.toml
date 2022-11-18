@@ -1,0 +1,23 @@
+[package]
+name = "journal-web-interface"
+description = "Provides a web interface for journalctl"
+version = "0.1.0"
+authors = ["Adam Reichold <adam.reichold@uba.de>"]
+license = "GPL-3.0"
+repository = "https://gitlab.opencode.de/umwelt-info/journal-web-interface"
+edition = "2021"
+
+[dependencies]
+axum = { version = "0.5", default-features = false, features = ["http1", "query", "tower-log"] }
+tokio = { version = "1.0", features = ["macros", "rt", "process"] }
+tokio-util = { version = "0.7", features = ["io"] }
+tower-http = { version = "0.3", features = ["trace", "fs"] }
+tracing = { version = "0.1", features = ["release_max_level_debug"] }
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+[package.metadata.deb]
+maintainer-scripts = "deployment"
+assets = [
+    ["target/release/journal-web-interface", "usr/bin/", "755"],
+    ["deployment/journal-web-interface.service", "etc/systemd/system/", "644"],
+]

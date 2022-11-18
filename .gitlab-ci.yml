@@ -1,0 +1,34 @@
+image: registry.opencode.de/umwelt-info/metadaten/builder:latest
+variables:
+  CARGO_HOME: $CI_PROJECT_DIR/.cargo
+  CARGO_INCREMENTAL: 0
+default:
+  cache:
+    key: $CI_JOB_NAME
+    paths:
+      - .cargo/registry/index
+      - .cargo/registry/cache
+      - .cargo/git/db
+      - .cargo/advisory-db
+      - target
+
+stages:
+  - check
+  - build
+
+check:
+  stage: check
+  script:
+    - cargo fmt --check
+    - cargo clippy -- --deny warnings --forbid unsafe-code
+    - cargo audit
+
+build:
+  stage: build
+  variables:
+    RUSTFLAGS: -Ctarget-cpu=haswell
+  script:
+    - cargo deb --no-strip --fast
+  artifacts:
+    paths:
+      - target/debian/journal-web-interface_*_amd64.deb

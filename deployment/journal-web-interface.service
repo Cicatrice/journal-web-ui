@@ -1,0 +1,23 @@
+[Unit]
+Description=journal web interface service
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+DynamicUser=yes
+SupplementaryGroups=systemd-journal
+Environment=BIND_ADDR=[::]:8080
+
+ExecStart=journal-web-interface
+Restart=always
+
+ProtectSystem=strict
+ProtectHome=yes
+PrivateDevices=yes
+PrivateTmp=yes
+PrivateUsers=yes
+NoNewPrivileges=yes
+SystemCallFilter=@system-service
+
+[Install]
+WantedBy=multi-user.target
