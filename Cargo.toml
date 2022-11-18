@@ -9,6 +9,7 @@ edition = "2021"
 
 [dependencies]
 axum = { version = "0.5", default-features = false, features = ["http1", "query", "tower-log"] }
+serde = { version = "1.0", features = ["derive"] }
 tokio = { version = "1.0", features = ["macros", "rt", "process"] }
 tokio-util = { version = "0.7", features = ["io"] }
 tower-http = { version = "0.3", features = ["trace", "fs"] }

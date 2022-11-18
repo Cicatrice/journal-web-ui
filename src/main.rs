@@ -5,11 +5,13 @@ use std::process::Stdio;
 
 use axum::{
     body::StreamBody,
+    extract::Query,
     http::StatusCode,
     response::{IntoResponse, Response},
     routing::get,
     Router, Server,
 };
+use serde::Deserialize;
 use tokio::process::{ChildStdout, Command};
 use tokio_util::io::ReaderStream;
 use tower_http::trace::{DefaultMakeSpan, TraceLayer};
@@ -38,8 +40,40 @@ async fn main() -> Fallible {
     Ok(())
 }
 
-async fn run_journalctl() -> Result<StreamBody<ReaderStream<ChildStdout>>, ServerError> {
-    let mut child = Command::new("journalctl").stdout(Stdio::piped()).spawn()?;
+#[derive(Deserialize)]
+struct Params {
+    lines: Option<String>,
+    unit: Option<String>,
+    grep: Option<String>,
+    hostname: Option<String>,
+}
+
+async fn run_journalctl(
+    Query(params): Query<Params>,
+) -> Result<StreamBody<ReaderStream<ChildStdout>>, ServerError> {
+    let mut cmd = Command::new("journalctl");
+
+    cmd.args(["--merge", "--reverse"]);
+    cmd.stdout(Stdio::piped());
+
+    match params.lines {
+        Some(lines) => cmd.arg(format!("--lines={lines}")),
+        None => cmd.arg("--lines"),
+    };
+
+    if let Some(unit) = params.unit {
+        cmd.arg(format!("--unit={unit}"));
+    }
+
+    if let Some(grep) = params.grep {
+        cmd.arg(format!("--grep={grep}"));
+    }
+
+    if let Some(hostname) = params.hostname {
+        cmd.arg(format!("_HOSTNAME={hostname}"));
+    }
+
+    let mut child = cmd.spawn()?;
     let stdout = ReaderStream::new(child.stdout.take().unwrap());
     Ok(StreamBody::new(stdout))
 }

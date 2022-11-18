@@ -6,7 +6,7 @@ After=network-online.target
 [Service]
 DynamicUser=yes
 SupplementaryGroups=systemd-journal
-Environment=BIND_ADDR=[::]:8080
+Environment=BIND_ADDR=[::]:5000
 
 ExecStart=journal-web-interface
 Restart=always
