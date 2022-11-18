@@ -1,98 +1,82 @@
+use std::convert::Infallible;
 use std::env::var;
 use std::error::Error as StdError;
 use std::net::SocketAddr;
 use std::process::Stdio;
 
-use axum::{
-    body::StreamBody,
-    extract::Query,
-    http::StatusCode,
-    response::{IntoResponse, Response},
-    routing::get,
-    Router, Server,
+use form_urlencoded::parse;
+use hyper::{
+    body::Body,
+    header::CONTENT_TYPE,
+    service::{make_service_fn, service_fn},
+    Request, Response, Server, StatusCode,
 };
-use serde::Deserialize;
-use tokio::process::{ChildStdout, Command};
+use tokio::process::Command;
 use tokio_util::io::ReaderStream;
-use tower_http::trace::{DefaultMakeSpan, TraceLayer};
-use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Fallible {
-    tracing_subscriber::registry()
-        .with(tracing_subscriber::EnvFilter::from_default_env())
-        .with(tracing_subscriber::fmt::layer())
-        .init();
-
     let bind_addr = var("BIND_ADDR")?.parse::<SocketAddr>()?;
 
-    let router = Router::new()
-        .route("/", get(run_journalctl))
-        .layer(
-            TraceLayer::new_for_http()
-                .make_span_with(DefaultMakeSpan::default().include_headers(true)),
-        )
-        .into_make_service();
+    let service = make_service_fn(move |_| async move {
+        Ok::<_, Infallible>(service_fn(move |req| async move {
+            match run_journalctl(req).await {
+                Ok(resp) => Ok(resp),
+                Err(err) => {
+                    let msg = format!("Failed to run journalctl: {}", err);
 
-    tracing::info!("Listening on {}", bind_addr);
-    Server::bind(&bind_addr).serve(router).await?;
+                    eprintln!("{}", msg);
+
+                    Response::builder()
+                        .status(StatusCode::INTERNAL_SERVER_ERROR)
+                        .header(CONTENT_TYPE, "text/plain")
+                        .body(msg.into())
+                }
+            }
+        }))
+    });
+
+    Server::bind(&bind_addr).serve(service).await?;
 
     Ok(())
 }
 
-#[derive(Deserialize)]
-struct Params {
-    lines: Option<String>,
-    unit: Option<String>,
-    grep: Option<String>,
-    hostname: Option<String>,
-}
-
-async fn run_journalctl(
-    Query(params): Query<Params>,
-) -> Result<StreamBody<ReaderStream<ChildStdout>>, ServerError> {
+async fn run_journalctl(req: Request<Body>) -> Fallible<Response<Body>> {
     let mut cmd = Command::new("journalctl");
 
     cmd.args(["--merge", "--reverse"]);
     cmd.stdout(Stdio::piped());
 
-    match params.lines {
-        Some(lines) => cmd.arg(format!("--lines={lines}")),
-        None => cmd.arg("--lines"),
-    };
+    let query = parse(req.uri().query().unwrap_or_default().as_bytes());
+    let mut lines = false;
 
-    if let Some(unit) = params.unit {
-        cmd.arg(format!("--unit={unit}"));
+    for (key, value) in query {
+        match &*key {
+            "lines" => {
+                lines = true;
+                cmd.arg(format!("--lines={value}"))
+            }
+            "unit" => cmd.arg(format!("--unit={value}")),
+            "grep" => cmd.arg(format!("--grep={value}")),
+            "hostname" => cmd.arg(format!("_HOSTNAME={value}")),
+            "matches" => cmd.arg(&*value),
+            _ => continue,
+        };
     }
 
-    if let Some(grep) = params.grep {
-        cmd.arg(format!("--grep={grep}"));
-    }
-
-    if let Some(hostname) = params.hostname {
-        cmd.arg(format!("_HOSTNAME={hostname}"));
+    if !lines {
+        cmd.arg("--lines");
     }
 
     let mut child = cmd.spawn()?;
     let stdout = ReaderStream::new(child.stdout.take().unwrap());
-    Ok(StreamBody::new(stdout))
-}
 
-struct ServerError(Error);
+    let resp = Response::builder()
+        .header(CONTENT_TYPE, "text/plain")
+        .body(Body::wrap_stream(stdout))
+        .unwrap();
 
-impl<E> From<E> for ServerError
-where
-    Error: From<E>,
-{
-    fn from(err: E) -> Self {
-        Self(Error::from(err))
-    }
-}
-
-impl IntoResponse for ServerError {
-    fn into_response(self) -> Response {
-        (StatusCode::INTERNAL_SERVER_ERROR, self.0.to_string()).into_response()
-    }
+    Ok(resp)
 }
 
 type Fallible<T = ()> = Result<T, Error>;
