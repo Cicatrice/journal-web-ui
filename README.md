@@ -1,3 +1,3 @@
-# journal-web-interface
+# journal-web-ui
 
-A service which provides a web interface for journalctl.
+A service which provides a web UI for the systemd journal.

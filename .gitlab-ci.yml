@@ -31,4 +31,4 @@ build:
     - cargo deb --no-strip --fast
   artifacts:
     paths:
-      - target/debian/journal-web-interface_*_amd64.deb
+      - target/debian/journal-web-ui_*_amd64.deb

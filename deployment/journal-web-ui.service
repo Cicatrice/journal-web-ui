@@ -9,7 +9,7 @@ SupplementaryGroups=systemd-journal
 SupplementaryGroups=systemd-journal-remote
 Environment=BIND_ADDR=[::]:5000
 
-ExecStart=journal-web-interface
+ExecStart=journal-web-ui
 Restart=always
 
 ProtectSystem=strict

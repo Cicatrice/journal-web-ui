@@ -2,5 +2,5 @@
 
 systemctl daemon-reload
 
-systemctl restart journal-web-interface.service
-systemctl enable journal-web-interface.service
+systemctl restart journal-web-ui.service
+systemctl enable journal-web-ui.service
