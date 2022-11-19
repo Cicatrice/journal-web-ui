@@ -57,6 +57,8 @@ async fn run_journalctl(req: Request<Body>) -> Fallible<Response<Body>> {
                 cmd.arg(format!("--lines={value}"))
             }
             "unit" => cmd.arg(format!("--unit={value}")),
+            "since" => cmd.arg(format!("--since={value}")),
+            "until" => cmd.arg(format!("--until={value}")),
             "grep" => cmd.arg(format!("--grep={value}")),
             "hostname" => cmd.arg(format!("_HOSTNAME={value}")),
             "matches" => cmd.arg(&*value),
