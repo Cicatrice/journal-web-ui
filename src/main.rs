@@ -74,7 +74,7 @@ async fn run_journalctl(req: Request<Body>) -> Fallible<Response<Body>> {
     let stdout = ReaderStream::new(child.stdout.take().unwrap());
 
     let resp = Response::builder()
-        .header(CONTENT_TYPE, "text/plain")
+        .header(CONTENT_TYPE, "text/plain; charset=utf-8")
         .body(Body::wrap_stream(stdout))
         .unwrap();
 
