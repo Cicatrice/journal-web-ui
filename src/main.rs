@@ -1,6 +1,8 @@
 use std::convert::Infallible;
-use std::env::var;
+use std::env::{var, var_os};
 use std::error::Error as StdError;
+use std::ffi::OsStr;
+use std::fs::read_to_string;
 use std::net::SocketAddr;
 use std::process::Stdio;
 
@@ -11,16 +13,23 @@ use hyper::{
     service::{make_service_fn, service_fn},
     Request, Response, Server, StatusCode,
 };
-use tokio::process::Command;
-use tokio_util::io::ReaderStream;
+use regex::{RegexSet, RegexSetBuilder};
+use tokio::{
+    io::{AsyncBufReadExt, BufReader},
+    process::Command,
+};
+use tokio_stream::{wrappers::LinesStream, StreamExt};
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Fallible {
     let bind_addr = var("BIND_ADDR")?.parse::<SocketAddr>()?;
+    let exp_msgs = var_os("EXP_MSGS").expect("Missing environment variable EXP_MSGS");
+
+    let exp_msgs = &*Box::leak(Box::new(build_exp_msgs(&exp_msgs)?));
 
     let service = make_service_fn(move |_| async move {
         Ok::<_, Infallible>(service_fn(move |req| async move {
-            match run_journalctl(req).await {
+            match run_journalctl(exp_msgs, req).await {
                 Ok(resp) => Ok(resp),
                 Err(err) => {
                     let msg = format!("Failed to run journalctl: {}", err);
@@ -41,7 +50,20 @@ async fn main() -> Fallible {
     Ok(())
 }
 
-async fn run_journalctl(req: Request<Body>) -> Fallible<Response<Body>> {
+fn build_exp_msgs(path: &OsStr) -> Fallible<RegexSet> {
+    let buffer = read_to_string(path)?;
+
+    let patterns = buffer.lines().filter(|line| !line.starts_with('#'));
+
+    let regex = RegexSetBuilder::new(patterns).build()?;
+
+    Ok(regex)
+}
+
+async fn run_journalctl(
+    exp_msgs: &'static RegexSet,
+    req: Request<Body>,
+) -> Fallible<Response<Body>> {
     let mut cmd = Command::new("journalctl");
 
     cmd.args(["--merge", "--reverse"]);
@@ -49,6 +71,7 @@ async fn run_journalctl(req: Request<Body>) -> Fallible<Response<Body>> {
 
     let query = parse(req.uri().query().unwrap_or_default().as_bytes());
     let mut lines = false;
+    let mut unexpected = false;
 
     for (key, value) in query {
         match &*key {
@@ -62,6 +85,10 @@ async fn run_journalctl(req: Request<Body>) -> Fallible<Response<Body>> {
             "grep" => cmd.arg(format!("--grep={value}")),
             "hostname" => cmd.arg(format!("_HOSTNAME={value}")),
             "matches" => cmd.arg(&*value),
+            "unexpected" => {
+                unexpected = true;
+                continue;
+            }
             _ => continue,
         };
     }
@@ -71,11 +98,24 @@ async fn run_journalctl(req: Request<Body>) -> Fallible<Response<Body>> {
     }
 
     let mut child = cmd.spawn()?;
-    let stdout = ReaderStream::new(child.stdout.take().unwrap());
+    let stdout = child.stdout.take().unwrap();
+
+    let lines =
+        LinesStream::new(BufReader::new(stdout).lines()).filter_map(move |line| match line {
+            Ok(mut line) => {
+                if unexpected && exp_msgs.is_match(&line) {
+                    return None;
+                }
+
+                line.push('\n');
+                Some(Ok(line))
+            }
+            err => Some(err),
+        });
 
     let resp = Response::builder()
         .header(CONTENT_TYPE, "text/plain; charset=utf-8")
-        .body(Body::wrap_stream(stdout))
+        .body(Body::wrap_stream(lines))
         .unwrap();
 
     Ok(resp)
