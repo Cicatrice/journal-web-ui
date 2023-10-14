@@ -21,7 +21,7 @@ check:
   script:
     - cargo fmt --check
     - cargo clippy -- --deny warnings --forbid unsafe-code
-    - cargo deny check advisories
+    - cargo audit
 
 build:
   stage: build
