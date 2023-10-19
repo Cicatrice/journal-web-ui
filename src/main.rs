@@ -84,7 +84,6 @@ async fn run_journalctl(
             "until" => cmd.arg(format!("--until={value}")),
             "grep" => cmd.arg(format!("--grep={value}")),
             "hostname" => cmd.arg(format!("_HOSTNAME={value}")),
-            "matches" => cmd.arg(&*value),
             "unexpected" => {
                 unexpected = true;
                 continue;

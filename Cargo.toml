@@ -2,7 +2,7 @@
 name = "journal-web-ui"
 description = "Provides a web UI for the systemd journal"
 version = "0.1.0"
-authors = ["Adam Reichold <adam.reichold@uba.de>"]
+authors = ["AG umwelt.info <umwelt.info@uba.de>"]
 license = "GPL-3.0"
 repository = "https://gitlab.opencode.de/umwelt-info/journal-web-ui"
 edition = "2021"

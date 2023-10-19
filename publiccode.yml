@@ -1,0 +1,52 @@
+publiccodeYmlVersion: '0.2'
+
+name: journal-web-ui
+applicationSuite: umwelt-info
+url: "https://gitlab.opencode.de/umwelt-info/journal-web-ui"
+landingURL: "https://umwelt.info"
+releaseDate: "2023-11-01"
+platforms:
+  - linux
+
+categories:
+  - it-management
+
+developmentStatus: development
+
+softwareType: standalone/web
+
+maintenance:
+  type: internal
+
+  contacts:
+    - name: AG umwelt.info
+      email: umwelt.info@uba.de
+      affiliation: Umweltbundesamt
+
+dependsOn:
+  open:
+    - name: systemd-journald
+
+usedBy:
+  - Umweltbundesamt
+  - umwelt.info
+
+description:
+  de:
+    documentation: "https://gitlab.opencode.de/umwelt-info/journal-web-ui/-/blob/main/README.md"
+
+    longDescription: >
+      The web application called journal-web-ui and originally created for the umwelt.info portal provides a browser-based frontend for the journalctl command in order to display the centrally collected system and application logs without direct SSH access. 
+
+    shortDescription: >
+      Provides a web UI for the systemd journal.
+
+localisation:
+  localisationReady: false
+  availableLanguages:
+    - en
+
+legal:
+  license: GPL-3.0-or-later
+  mainCopyrightOwner: AG umwelt.info
+  repoOwner: AG umwelt.info
