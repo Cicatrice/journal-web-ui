@@ -10,7 +10,14 @@ The implementation used [`journalctl (1)`](https://manpages.ubuntu.com/manpages/
 
 1. The CI here builds a ready-to-use Debian package availabl at <https://gitlab.opencode.de/api/v4/projects/628/jobs/artifacts/main/download?job=build>.
 2. This package needs to be installed on the target machine and will listen for HTTP connections on port 5000.
-3. The set of expected log messages (which are filtered out if requested) needs to be configured in `/etc/expected-log-messages`.
+3. Use `systemctl edit journal-web-ui.service` to set the following environment variables to configure the service:
+
+| variable | description | example |
+| -------- | ----------- | ------- |
+| `EXP_MSGS` | set of expected log messages (which are filtered out if requested) | `EXP_MSGS=/etc/expected-log-messages` |
+| `MAIL_SRV` | server used to send unexpected logs to | `MAIL_SRV=smtp-gateway` |
+| `MAIL_FROM` | address from which mails are sent | `MAIL_FROM=journal@collector` |
+| `MAIL_TO` | address to which mails are sent | `MAIL_TO=operations@company` |
 
 ## Usage
 
@@ -18,13 +25,13 @@ The service is used by making HTTP requests to port 5000, e.g. to <http://localh
 
 | parameter | description | example |
 | --------- | ----------- | ------- |
-| lines | number of lines to be shown or `all` to remove the limit | `lines=100` |
-| hostname | limits the output to the given hostname | `hostname=the-name-of-the-host` |
-| unit | limits the output to the given systemd unit | `unit=systemd-journald.service` |
-| since | defines the start date of the analysis | `since=-24h` |
-| until | defines the end date of the analysis | `until=2023-10-19 12:00` |
-| grep | filters the messages for given regular expression | `grep=ERROR` |
-| unexpected | filters the messages using the configured set of expected log messages | `unexpected=` |
+| `lines` | number of lines to be shown or `all` to remove the limit | `lines=100` |
+| `hostname` | limits the output to the given hostname | `hostname=the-name-of-the-host` |
+| `unit` | limits the output to the given systemd unit | `unit=systemd-journald.service` |
+| `since` | defines the start date of the analysis | `since=-24h` |
+| `until` | defines the end date of the analysis | `until=2023-10-19 12:00` |
+| `grep` | filters the messages for given regular expression | `grep=ERROR` |
+| `unexpected` | filters the messages using the configured set of expected log messages | `unexpected=` |
 
 For example, to query all messages of `harvester.service` unit running on the `metadaten` machine logged in the last 24 hours and containing the pattern `ERROR`, use the following URL:
 

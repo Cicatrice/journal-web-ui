@@ -7,7 +7,7 @@ After=network-online.target
 DynamicUser=yes
 SupplementaryGroups=systemd-journal
 SupplementaryGroups=systemd-journal-remote
-Environment=BIND_ADDR=[::]:5000 EXP_MSGS=/etc/expected-log-messages
+Environment=BIND_ADDR=[::]:5000
 
 ExecStart=journal-web-ui
 Restart=always
