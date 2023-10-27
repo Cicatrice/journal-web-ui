@@ -124,7 +124,9 @@ async fn collect_unexp_msgs(
         }
     }
 
-    Ok(())
+    let status = child.wait().await?;
+
+    Err(format!("journalctl exited unexpected with status: {status:?}").into())
 }
 
 async fn run_journalctl(
