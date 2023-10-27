@@ -15,6 +15,7 @@ The implementation used [`journalctl (1)`](https://manpages.ubuntu.com/manpages/
 | variable | description | example |
 | -------- | ----------- | ------- |
 | `EXP_MSGS` | set of expected log messages (which are filtered out if requested) | `EXP_MSGS=/etc/expected-log-messages` |
+| `SEND_INTERVAL` | enables sending unexpected logs after the given number of seconds | `SEND_INTERVAL=900` |
 | `MAIL_SRV` | server used to send unexpected logs to | `MAIL_SRV=smtp-gateway` |
 | `MAIL_FROM` | address from which mails are sent | `MAIL_FROM=journal@collector` |
 | `MAIL_TO` | address to which mails are sent | `MAIL_TO=operations@company` |

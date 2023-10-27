@@ -32,22 +32,28 @@ async fn main() -> Fallible {
 
     let exp_msgs = var_os("EXP_MSGS").expect("Missing environment variable EXP_MSGS");
 
-    let mail_srv = var("MAIL_SRV").expect("Missing environment variable MAIL_SRV");
-    let mail_from = var("MAIL_FROM")
-        .expect("Missing environment variable MAIL_FROM")
-        .parse()?;
-    let mail_to = var("MAIL_TO")
-        .expect("Missing environment variable MAIL_TO")
-        .parse()?;
-
     let exp_msgs = &*Box::leak(Box::new(build_exp_msgs(&exp_msgs)?));
 
-    spawn(async move {
-        if let Err(err) = collect_unexp_msgs(exp_msgs, mail_srv, mail_from, mail_to).await {
-            eprintln!("Failed to collect unexpected messages: {}", err);
-            exit(1);
-        }
-    });
+    if let Ok(send_interval) = var("SEND_INTERVAL") {
+        let send_interval = Duration::from_secs(send_interval.parse()?);
+
+        let mail_srv = var("MAIL_SRV").expect("Missing environment variable MAIL_SRV");
+        let mail_from = var("MAIL_FROM")
+            .expect("Missing environment variable MAIL_FROM")
+            .parse()?;
+        let mail_to = var("MAIL_TO")
+            .expect("Missing environment variable MAIL_TO")
+            .parse()?;
+
+        spawn(async move {
+            if let Err(err) =
+                collect_unexp_msgs(exp_msgs, send_interval, mail_srv, mail_from, mail_to).await
+            {
+                eprintln!("Failed to collect unexpected messages: {}", err);
+                exit(1);
+            }
+        });
+    }
 
     let service = make_service_fn(move |_| async move {
         Ok::<_, Infallible>(service_fn(move |req| async move {
@@ -84,6 +90,7 @@ fn build_exp_msgs(path: &OsStr) -> Fallible<RegexSet> {
 
 async fn collect_unexp_msgs(
     exp_msgs: &'static RegexSet,
+    send_interval: Duration,
     mail_srv: String,
     mail_from: Mailbox,
     mail_to: Mailbox,
@@ -97,14 +104,13 @@ async fn collect_unexp_msgs(
 
     let mut buf = Vec::new();
     let mut last_send = Instant::now();
-    const INTERVAL: Duration = Duration::from_secs(15 * 60);
 
     while let Some(line) = lines.next_line().await? {
         if !exp_msgs.is_match(&line) {
             buf.push(line);
         }
 
-        if !buf.is_empty() && last_send.elapsed() >= INTERVAL {
+        if !buf.is_empty() && last_send.elapsed() >= send_interval {
             eprintln!("Sending {} unexpected log messages via mail...", buf.len());
 
             let mail = Message::builder()
