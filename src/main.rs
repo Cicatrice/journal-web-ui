@@ -103,14 +103,18 @@ async fn collect_unexp_msgs(
     let mut lines = BufReader::new(child.stdout.take().unwrap()).lines();
 
     let mut buf = Vec::new();
-    let mut last_send = Instant::now();
+    let mut oldest_msg = Instant::now();
 
     while let Some(line) = lines.next_line().await? {
         if !exp_msgs.is_match(&line) {
+            if buf.is_empty() {
+                oldest_msg = Instant::now();
+            }
+
             buf.push(line);
         }
 
-        if !buf.is_empty() && last_send.elapsed() >= send_interval {
+        if !buf.is_empty() && oldest_msg.elapsed() >= send_interval {
             eprintln!("Sending {} unexpected log messages via mail...", buf.len());
 
             let mail = Message::builder()
@@ -126,7 +130,6 @@ async fn collect_unexp_msgs(
                 .await?;
 
             buf.clear();
-            last_send = Instant::now();
         }
     }
 
