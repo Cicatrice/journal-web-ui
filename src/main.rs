@@ -5,7 +5,6 @@ use std::ffi::OsStr;
 use std::fs::read_to_string;
 use std::net::SocketAddr;
 use std::process::{exit, Stdio};
-use std::time::{Duration, Instant};
 
 use form_urlencoded::parse;
 use hyper::{
@@ -21,8 +20,11 @@ use lettre::{
 use regex::{RegexSet, RegexSetBuilder};
 use tokio::{
     io::{AsyncBufReadExt, BufReader},
+    pin,
     process::Command,
+    select,
     task::spawn,
+    time::{sleep_until, Duration, Instant},
 };
 use tokio_stream::{wrappers::LinesStream, StreamExt};
 
@@ -102,34 +104,46 @@ async fn collect_unexp_msgs(
 
     let mut lines = BufReader::new(child.stdout.take().unwrap()).lines();
 
-    let mut buf = Vec::new();
-    let mut oldest_msg = Instant::now();
+    let send_at = sleep_until(Instant::now());
+    pin!(send_at);
 
-    while let Some(line) = lines.next_line().await? {
-        if !exp_msgs.is_match(&line) {
-            if buf.is_empty() {
-                oldest_msg = Instant::now();
+    let mut buf = Vec::new();
+
+    loop {
+        select! {
+            biased;
+
+            () = &mut send_at, if !buf.is_empty() => {
+                eprintln!("Sending {} unexpected log messages via mail...", buf.len());
+
+                let mail = Message::builder()
+                    .from(mail_from.clone())
+                    .to(mail_to.clone())
+                    .subject("Unexpected log messages")
+                    .header(ContentType::TEXT_PLAIN)
+                    .body(buf.join("\r\n"))?;
+
+                AsyncSmtpTransport::<Tokio1Executor>::builder_dangerous(mail_srv.clone())
+                    .build()
+                    .send(mail)
+                    .await?;
+
+                buf.clear();
             }
 
-            buf.push(line);
-        }
+            line = lines.next_line() => {
+                if let Some(line) = line? {
+                    if !exp_msgs.is_match(&line) {
+                        if buf.is_empty() {
+                            send_at.as_mut().reset(Instant::now() + send_interval);
+                        }
 
-        if !buf.is_empty() && oldest_msg.elapsed() >= send_interval {
-            eprintln!("Sending {} unexpected log messages via mail...", buf.len());
-
-            let mail = Message::builder()
-                .from(mail_from.clone())
-                .to(mail_to.clone())
-                .subject("Unexpected log messages")
-                .header(ContentType::TEXT_PLAIN)
-                .body(buf.join("\r\n"))?;
-
-            AsyncSmtpTransport::<Tokio1Executor>::builder_dangerous(mail_srv.clone())
-                .build()
-                .send(mail)
-                .await?;
-
-            buf.clear();
+                        buf.push(line);
+                    }
+                } else {
+                    break;
+                }
+            }
         }
     }
 
