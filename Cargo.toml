@@ -17,6 +17,7 @@ tokio-stream = { version = "0.1", features = ["io-util"] }
 
 [profile.release]
 lto = "thin"
+strip = "debuginfo"
 
 [package.metadata.deb]
 maintainer-scripts = "deployment"
