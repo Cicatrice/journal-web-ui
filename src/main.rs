@@ -105,6 +105,8 @@ async fn run_logs(
             for (key, value) in query {
                 match &*key {
                     "lines" => cmd.arg(format!("--tail={value}")),
+                    "since" => cmd.arg(format!("--since={value}")),
+                    "until" => cmd.arg(format!("--until={value}")),
                     "container" => {
                         container_name = value.to_string() ;
                         continue
