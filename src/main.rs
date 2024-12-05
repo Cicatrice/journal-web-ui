@@ -59,10 +59,10 @@ async fn main() -> Fallible {
 
     let service = make_service_fn(move |_| async move {
         Ok::<_, Infallible>(service_fn(move |req| async move {
-            match run_journalctl(exp_msgs, req).await {
+            match run_logs(exp_msgs, req).await {
                 Ok(resp) => Ok(resp),
                 Err(err) => {
-                    let msg = format!("Failed to run journalctl: {}", err);
+                    let msg = format!("Failed to run logs command: {}", err);
 
                     eprintln!("{}", msg);
 
@@ -152,16 +152,13 @@ async fn collect_unexp_msgs(
     Err(format!("journalctl exited unexpected with status: {status:?}").into())
 }
 
-async fn run_journalctl(
+async fn run_logs(
     exp_msgs: &'static RegexSet,
     req: Request<Body>,
 ) -> Fallible<Response<Body>> {
-    let mut cmd = Command::new("journalctl");
-
-    cmd.args(["--merge", "--reverse"]);
-    cmd.stdout(Stdio::piped());
-
     let query = parse(req.uri().query().unwrap_or_default().as_bytes());
+    let mut cmd;
+    let mut container_name = None;
     let mut lines = false;
     let mut unexpected = false;
 
@@ -169,20 +166,32 @@ async fn run_journalctl(
         match &*key {
             "lines" => {
                 lines = true;
-                cmd.arg(format!("--lines={value}"))
+                if let Some(name) = &container_name {
+                    cmd = Command::new("docker");
+                    cmd.args(["logs", name]);
+                    cmd.arg(format!("--tail={value}"));
+                }
             }
-            "unit" => cmd.arg(format!("--unit={value}")),
+            "container" => container_name = Some(value.into_owned()),
+            "unit" => {
+                cmd = Command::new("journalctl");
+                cmd.args(["--merge", "--reverse", "--unit", &value]);
+            }
             "since" => cmd.arg(format!("--since={value}")),
             "until" => cmd.arg(format!("--until={value}")),
             "grep" => cmd.arg(format!("--grep={value}")),
             "hostname" => cmd.arg(format!("_HOSTNAME={value}")),
-            "container" => cmd.arg(format!("CONTAINER_NAME={value}")),
             "unexpected" => {
                 unexpected = true;
                 continue;
             }
             _ => continue,
         };
+    }
+
+    if container_name.is_none() {
+        cmd = Command::new("journalctl");
+        cmd.args(["--merge", "--reverse"]);
     }
 
     if !lines {
@@ -216,3 +225,4 @@ async fn run_journalctl(
 type Fallible<T = ()> = Result<T, Error>;
 
 type Error = Box<dyn StdError + Send + Sync>;
+
